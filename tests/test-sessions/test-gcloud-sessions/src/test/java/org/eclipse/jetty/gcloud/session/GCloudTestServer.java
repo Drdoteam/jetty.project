@@ -21,8 +21,10 @@ package org.eclipse.jetty.gcloud.session;
 
 import org.eclipse.jetty.server.SessionIdManager;
 import org.eclipse.jetty.server.SessionManager;
+import org.eclipse.jetty.server.session.AbstractSessionStore;
 import org.eclipse.jetty.server.session.AbstractTestServer;
 import org.eclipse.jetty.server.session.SessionHandler;
+import org.eclipse.jetty.server.session.StalePeriodStrategy;
 
 import com.google.gcloud.datastore.Datastore;
 import com.google.gcloud.datastore.DatastoreFactory;
@@ -79,8 +81,10 @@ public class GCloudTestServer extends AbstractTestServer
     {
         GCloudSessionManager sessionManager = new GCloudSessionManager();
         sessionManager.setSessionIdManager((GCloudSessionIdManager)_sessionIdManager);
-        sessionManager.setStaleIntervalSec(STALE_INTERVAL_SEC);
-        sessionManager.setScavengeIntervalSec(_scavengePeriod);
+        sessionManager.getSessionDataStore().setGCloudConfiguration(((GCloudSessionIdManager)_sessionIdManager).getConfig());
+        StalePeriodStrategy staleStrategy = new StalePeriodStrategy();
+        staleStrategy.setStaleSec(STALE_INTERVAL_SEC);
+       ((AbstractSessionStore)sessionManager.getSessionStore()).setStaleStrategy(staleStrategy);
         return sessionManager;
         
     }

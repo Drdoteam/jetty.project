@@ -18,8 +18,9 @@
 
 package org.eclipse.jetty.jstl;
 
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.net.URI;
 
 import javax.servlet.jsp.JspException;
 
+import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.toolchain.test.FS;
@@ -63,21 +65,26 @@ public class JstlTest
         File testTagLibDir = MavenTestingUtils.getProjectDir("src/test/taglibjar");
         JAR.create(testTagLibDir,new File(libDir, "testtaglib.jar"));
         
-        // Configure WebAppContext
- 
-        Configuration.ClassList classlist = Configuration.ClassList
-                .setServerDefault(server);
-
-        classlist.addBefore(
-                "org.eclipse.jetty.webapp.JettyWebXmlConfiguration",
-                "org.eclipse.jetty.annotations.AnnotationConfiguration");
-        
+        // Configure WebAppCont
         WebAppContext context = new WebAppContext();
         context.setContextPath("/");
+        
+        /* TODO: Bug #486530 - sub-handler on WebAppContext prevents startup
+        context.setHandler(new AbstractHandler()
+        {
+            public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
+                    throws IOException, ServletException
+            {
+            }
+        });
+         */
         
         File scratchDir = MavenTestingUtils.getTargetFile("tests/" + JstlTest.class.getSimpleName() + "-scratch");
         FS.ensureEmpty(scratchDir);
         JspConfig.init(context,testWebAppDir.toURI(),scratchDir);
+        
+        context.addConfiguration(new AnnotationConfiguration());
+        
         
         server.setHandler(context);
         

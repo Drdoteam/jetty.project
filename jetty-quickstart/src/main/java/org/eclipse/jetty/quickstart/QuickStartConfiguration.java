@@ -24,6 +24,7 @@ import org.eclipse.jetty.annotations.ServletContainerInitializersStarter;
 import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.Logger;
 import org.eclipse.jetty.util.resource.Resource;
+import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.StandardDescriptorProcessor;
 import org.eclipse.jetty.webapp.WebAppClassLoader;
 import org.eclipse.jetty.webapp.WebAppContext;
@@ -38,6 +39,18 @@ import org.eclipse.jetty.webapp.WebInfConfiguration;
 public class QuickStartConfiguration extends WebInfConfiguration
 {
     private static final Logger LOG = Log.getLogger(QuickStartConfiguration.class);
+
+    @Override
+    public Class<? extends Configuration> replaces()
+    {
+        return WebInfConfiguration.class;
+    }
+    
+    @Override
+    public boolean isEnabledByDefault()
+    {
+        return false;
+    }
 
     /**
      * @see org.eclipse.jetty.webapp.AbstractConfiguration#preConfigure(org.eclipse.jetty.webapp.WebAppContext)

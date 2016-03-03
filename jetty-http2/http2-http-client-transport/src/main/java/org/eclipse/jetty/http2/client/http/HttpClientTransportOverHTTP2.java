@@ -30,6 +30,7 @@ import org.eclipse.jetty.client.HttpDestination;
 import org.eclipse.jetty.client.Origin;
 import org.eclipse.jetty.client.api.Connection;
 import org.eclipse.jetty.http.HttpScheme;
+import org.eclipse.jetty.http2.HTTP2Session;
 import org.eclipse.jetty.http2.api.Session;
 import org.eclipse.jetty.http2.client.HTTP2Client;
 import org.eclipse.jetty.http2.client.HTTP2ClientConnectionFactory;
@@ -181,13 +182,13 @@ public class HttpClientTransportOverHTTP2 extends ContainerLifeCycle implements 
         @Override
         public void onClose(Session session, GoAwayFrame frame)
         {
-            connection.close();
+            connection.close(new AsynchronousCloseExceptionOverHTTP2(frame.getPayload()));
         }
 
         @Override
         public boolean onIdleTimeout(Session session)
         {
-            return connection.onIdleTimeout();
+            return connection.onIdleTimeout(((HTTP2Session)session).getEndPoint().getIdleTimeout());
         }
 
         @Override

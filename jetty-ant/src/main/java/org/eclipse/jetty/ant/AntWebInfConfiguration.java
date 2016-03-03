@@ -29,6 +29,7 @@ import java.util.regex.Pattern;
 import org.apache.tools.ant.AntClassLoader;
 import org.eclipse.jetty.util.PatternMatcher;
 import org.eclipse.jetty.util.resource.Resource;
+import org.eclipse.jetty.webapp.Configuration;
 import org.eclipse.jetty.webapp.WebAppClassLoader;
 import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.jetty.webapp.WebInfConfiguration;
@@ -37,6 +38,12 @@ import org.eclipse.jetty.webapp.WebXmlConfiguration;
 public class AntWebInfConfiguration extends WebInfConfiguration
 {
 
+    @Override
+    public Class<? extends Configuration> replaces()
+    {
+        return WebInfConfiguration.class;
+    }
+    
     
     @Override
     public void preConfigure(final WebAppContext context) throws Exception

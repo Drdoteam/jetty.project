@@ -18,14 +18,12 @@
 
 package org.eclipse.jetty.webapp;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.ListIterator;
 
-import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.util.TopologicalSort;
 import org.eclipse.jetty.util.annotation.Name;
-
 
 /* ------------------------------------------------------------------------------- */
 /** Base Class for WebApplicationContext Configuration.
@@ -35,6 +33,47 @@ import org.eclipse.jetty.util.annotation.Name;
 public interface Configuration 
 {
     public final static String ATTR="org.eclipse.jetty.webapp.configuration";
+
+    public default String getName() { return getClass().getName(); }
+    
+    /* ------------------------------------------------------------------------------- */
+    /** Get a class that this class replaces/extends
+     * @return The class this Configuration replaces/extends or null if it replaces no other configuration
+     */
+    public default Class<? extends Configuration> replaces() { return null; } 
+
+    /* ------------------------------------------------------------------------------- */
+    /** Get known Configuration Dependencies.
+     * @return The names of Configurations that {@link TopologicalSort} must order 
+     * before this configuration.
+     */
+    public default List<String> getBeforeThis() { return Collections.emptyList(); }
+
+    /* ------------------------------------------------------------------------------- */
+    /** Get known Configuration Dependents.
+     * @return The names of Configurations that {@link TopologicalSort} must order 
+     * after this configuration.
+     */
+    public default List<String> getAfterThis(){ return Collections.emptyList(); }
+
+    /* ------------------------------------------------------------------------------- */
+    /** Get the system classes associated with this Configuration.
+     * @return A list of class/package names.  Exclusions are prepended to the system classes and 
+     * inclusions are appended.
+     */
+    public default List<String> getSystemClasses() { return Collections.emptyList();  }
+
+    /* ------------------------------------------------------------------------------- */
+    /** Get the system classes associated with this Configuration.
+     * @return A list of class/package names.  Exclusions are prepended to the system classes and 
+     * inclusions are appended.
+     */
+    public default List<String> getServerClasses() { return Collections.emptyList();  }
+    
+    /**
+     * @return true if the Configuration should be enabled by default by being on server classpath
+     */
+    public default boolean isEnabledByDefault() { return false; }
     
     /* ------------------------------------------------------------------------------- */
     /** Set up for configuration.
@@ -94,82 +133,25 @@ public interface Configuration
      */
     public void cloneConfigure (WebAppContext template, WebAppContext context) throws Exception;
     
-    
-    public class ClassList extends ArrayList<String>
-    {        
-        /* ------------------------------------------------------------ */
-        /** Get/Set/Create the server default Configuration ClassList.
-         * <p>Get the class list from: a Server bean; or the attribute (which can
-         * either be a ClassList instance or an String[] of class names); or a new instance
-         * with default configuration classes.</p>
-         * <p>This method also adds the obtained ClassList instance as a dependent bean
-         * on the server and clears the attribute</p>
-         * @param server The server the default is for
-         * @return the server default ClassList instance of the configuration classes for this server. Changes to this list will change the server default instance.
-         */
-        public static ClassList setServerDefault(Server server)
-        {
-            ClassList cl=server.getBean(ClassList.class);
-            if (cl!=null)
-                return cl;
-            cl=serverDefault(server);
-            server.addBean(cl);
-            server.setAttribute(ATTR,null);
-            return cl;
-        }
-
-        /* ------------------------------------------------------------ */
-        /** Get/Create the server default Configuration ClassList.
-         * <p>Get the class list from: a Server bean; or the attribute (which can
-         * either be a ClassList instance or an String[] of class names); or a new instance
-         * with default configuration classes.
-         * @param server The server the default is for
-         * @return A copy of the server default ClassList instance of the configuration classes for this server. Changes to the returned list will not change the server default.
-         */
-        public static ClassList serverDefault(Server server)
-        {
-            ClassList cl=null;
-            if (server!=null)
-            {
-                cl= server.getBean(ClassList.class);
-                if (cl!=null)
-                    return new ClassList(cl);
-                Object attr = server.getAttribute(ATTR);
-                if (attr instanceof ClassList)
-                    return new ClassList((ClassList)attr);
-                if (attr instanceof String[])
-                    return new ClassList((String[])attr);
-            }
-            return new ClassList();
-        }
-        
-        public ClassList()
-        {
-            this(WebAppContext.DEFAULT_CONFIGURATION_CLASSES);
-        }
-        
-        public ClassList(String[] classes)
-        {
-            addAll(Arrays.asList(classes));
-        }
-
-        public ClassList(List<String> classes)
-        {
-            addAll(classes);
-        }
-        
+    /**
+     * @deprecated Use {@link Configurations}
+     */
+    public class ClassList extends Configurations
+    {
+        @Deprecated
         public void addAfter(@Name("afterClass") String afterClass,@Name("configClass")String... configClass)
         {
             if (configClass!=null && afterClass!=null)
             {
-                ListIterator<String> iter = listIterator();
+                ListIterator<Configuration> iter = _configurations.listIterator();
                 while (iter.hasNext())
                 {
-                    String cc=iter.next();
-                    if (afterClass.equals(cc))
+                    Configuration c=iter.next();
+                    
+                    if (afterClass.equals(c.getClass().getName()) || afterClass.equals(c.replaces().getName()))
                     {
-                        for (int i=0;i<configClass.length;i++)
-                            iter.add(configClass[i]);
+                        for (String cc: configClass)
+                            iter.add(getConfiguration(cc));
                         return;
                     }
                 }
@@ -177,25 +159,27 @@ public interface Configuration
             throw new IllegalArgumentException("afterClass '"+afterClass+"' not found in "+this);
         }
 
+        @Deprecated
         public void addBefore(@Name("beforeClass") String beforeClass,@Name("configClass")String... configClass)
         {
             if (configClass!=null && beforeClass!=null)
             {
-                ListIterator<String> iter = listIterator();
+                ListIterator<Configuration> iter = _configurations.listIterator();
                 while (iter.hasNext())
                 {
-                    String cc=iter.next();
-                    if (beforeClass.equals(cc))
+                    Configuration c=iter.next();
+                    
+                    if (beforeClass.equals(c.getClass().getName()) || beforeClass.equals(c.replaces().getName()))
                     {
                         iter.previous();
-                        for (int i=0;i<configClass.length;i++)
-                            iter.add(configClass[i]);
+                        for (String cc: configClass)
+                            iter.add(getConfiguration(cc));
                         return;
                     }
                 }
             }
+            
             throw new IllegalArgumentException("beforeClass '"+beforeClass+"' not found in "+this);
         }
-        
     }
 }

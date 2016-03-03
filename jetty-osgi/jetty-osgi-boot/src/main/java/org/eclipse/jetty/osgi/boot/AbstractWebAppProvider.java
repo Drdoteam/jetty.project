@@ -24,12 +24,15 @@ import java.util.Dictionary;
 import java.util.Enumeration;
 import java.util.HashMap;
 
+import org.eclipse.jetty.annotations.AnnotationConfiguration;
 import org.eclipse.jetty.deploy.App;
 import org.eclipse.jetty.deploy.AppProvider;
 import org.eclipse.jetty.deploy.DeploymentManager;
 import org.eclipse.jetty.osgi.boot.internal.serverfactory.ServerInstanceWrapper;
 import org.eclipse.jetty.osgi.boot.internal.webapp.OSGiWebappClassLoader;
 import org.eclipse.jetty.osgi.boot.utils.BundleFileLocatorHelperFactory;
+import org.eclipse.jetty.plus.webapp.EnvConfiguration;
+import org.eclipse.jetty.plus.webapp.PlusConfiguration;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.eclipse.jetty.util.Loader;
 import org.eclipse.jetty.util.component.AbstractLifeCycle;
@@ -37,7 +40,7 @@ import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.Logger;
 import org.eclipse.jetty.util.resource.JarResource;
 import org.eclipse.jetty.util.resource.Resource;
-import org.eclipse.jetty.webapp.Configuration;
+import org.eclipse.jetty.webapp.Configurations;
 import org.eclipse.jetty.webapp.WebAppContext;
 import org.eclipse.jetty.xml.XmlConfiguration;
 import org.osgi.framework.Bundle;
@@ -580,18 +583,17 @@ public abstract class AbstractWebAppProvider extends AbstractLifeCycle implement
         if (_configurationClasses != null)
             return _configurationClasses;
 
-        Configuration.ClassList defaults = Configuration.ClassList.serverDefault(_serverWrapper.getServer());
+        Configurations defaults = Configurations.serverDefault(_serverWrapper.getServer());
 
         //add before JettyWebXmlConfiguration
         if (annotationsAvailable())
-            defaults.addBefore("org.eclipse.jetty.webapp.JettyWebXmlConfiguration", 
-                               "org.eclipse.jetty.osgi.annotations.AnnotationConfiguration");
+            defaults.add(AnnotationConfiguration.class.getName());
 
         //add in EnvConfiguration and PlusConfiguration just after FragmentConfiguration
         if (jndiAvailable())
-            defaults.addAfter("org.eclipse.jetty.webapp.FragmentConfiguration",
-                              "org.eclipse.jetty.plus.webapp.EnvConfiguration",
-                              "org.eclipse.jetty.plus.webapp.PlusConfiguration");
+            defaults.add(
+                    EnvConfiguration.class.getName(),
+                    PlusConfiguration.class.getName());
        String[] asArray = new String[defaults.size()];
        return defaults.toArray(asArray);
     }

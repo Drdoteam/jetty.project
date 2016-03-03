@@ -20,16 +20,9 @@ package org.eclipse.jetty.gcloud.session;
 
 import java.util.Random;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
-
-import org.eclipse.jetty.server.Handler;
 import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.SessionManager;
-import org.eclipse.jetty.server.handler.ContextHandler;
-import org.eclipse.jetty.server.session.AbstractSession;
 import org.eclipse.jetty.server.session.AbstractSessionIdManager;
-import org.eclipse.jetty.server.session.SessionHandler;
+import org.eclipse.jetty.server.session.Session;
 import org.eclipse.jetty.util.log.Log;
 import org.eclipse.jetty.util.log.Logger;
 
@@ -52,7 +45,6 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
     private  final static Logger LOG = Log.getLogger("org.eclipse.jetty.server.session");
     public static final int DEFAULT_IDLE_EXPIRY_MULTIPLE = 2;
     public static final String KIND = "GCloudSessionId";
-    private Server _server;
     private Datastore _datastore;
     private KeyFactory _keyFactory;
     private GCloudConfiguration _config;
@@ -65,8 +57,7 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
      */
     public GCloudSessionIdManager(Server server)
     {
-        super();
-        _server = server;
+        super(server);
     }
 
     /**
@@ -75,8 +66,7 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
      */
     public GCloudSessionIdManager(Server server, Random random)
     {
-       super(random);
-       _server = server;
+       super(server,random);
     }
 
 
@@ -111,56 +101,7 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
     }
 
     
-   
-
-    
-    /** 
-     * Check to see if the given session id is being
-     * used by a session in any context.
-     * 
-     * This method will consult the cluster.
-     * 
-     * @see org.eclipse.jetty.server.SessionIdManager#idInUse(java.lang.String)
-     */
-    @Override
-    public boolean idInUse(String id)
-    {
-        if (id == null)
-            return false;
-        
-        String clusterId = getClusterId(id);
-        
-        //ask the cluster - this should also tickle the idle expiration timer on the sessionid entry
-        //keeping it valid
-        try
-        {
-            return exists(clusterId);
-        }
-        catch (Exception e)
-        {
-            LOG.warn("Problem checking inUse for id="+clusterId, e);
-            return false;
-        }
-        
-    }
-
-    /** 
-     * Remember a new in-use session id.
-     * 
-     * This will save the in-use session id to the cluster.
-     * 
-     * @see org.eclipse.jetty.server.SessionIdManager#addSession(javax.servlet.http.HttpSession)
-     */
-    @Override
-    public void addSession(HttpSession session)
-    {
-        if (session == null)
-            return;
-
-        //insert into the store
-        insert (((AbstractSession)session).getClusterId());
-    }
-
+ 
   
 
     
@@ -174,91 +115,8 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
         _config = config;
     }
 
-    
-    
-    /** 
-     * Remove a session id from the list of in-use ids.
-     * 
-     * This will remvove the corresponding session id from the cluster.
-     * 
-     * @see org.eclipse.jetty.server.SessionIdManager#removeSession(javax.servlet.http.HttpSession)
-     */
-    @Override
-    public void removeSession(HttpSession session)
-    {
-        if (session == null)
-            return;
+   
 
-        //delete from the cache
-        delete (((AbstractSession)session).getClusterId());
-    }
-
-    /** 
-     * Remove a session id. This compels all other contexts who have a session
-     * with the same id to also remove it.
-     * 
-     * @see org.eclipse.jetty.server.SessionIdManager#invalidateAll(java.lang.String)
-     */
-    @Override
-    public void invalidateAll(String id)
-    {
-        //delete the session id from list of in-use sessions
-        delete (id);
-
-
-        //tell all contexts that may have a session object with this id to
-        //get rid of them
-        Handler[] contexts = _server.getChildHandlersByClass(ContextHandler.class);
-        for (int i=0; contexts!=null && i<contexts.length; i++)
-        {
-            SessionHandler sessionHandler = ((ContextHandler)contexts[i]).getChildHandlerByClass(SessionHandler.class);
-            if (sessionHandler != null)
-            {
-                SessionManager manager = sessionHandler.getSessionManager();
-
-                if (manager != null && manager instanceof GCloudSessionManager)
-                {
-                    ((GCloudSessionManager)manager).invalidateSession(id);
-                }
-            }
-        }
-
-    }
-
-    /** 
-     * Change a session id. 
-     * 
-     * Typically this occurs when a previously existing session has passed through authentication.
-     * 
-     * @see org.eclipse.jetty.server.session.AbstractSessionIdManager#renewSessionId(java.lang.String, java.lang.String, javax.servlet.http.HttpServletRequest)
-     */
-    @Override
-    public void renewSessionId(String oldClusterId, String oldNodeId, HttpServletRequest request)
-    {
-        //generate a new id
-        String newClusterId = newSessionId(request.hashCode());
-
-        delete(oldClusterId);
-        insert(newClusterId);
-
-
-        //tell all contexts to update the id 
-        Handler[] contexts = _server.getChildHandlersByClass(ContextHandler.class);
-        for (int i=0; contexts!=null && i<contexts.length; i++)
-        {
-            SessionHandler sessionHandler = ((ContextHandler)contexts[i]).getChildHandlerByClass(SessionHandler.class);
-            if (sessionHandler != null) 
-            {
-                SessionManager manager = sessionHandler.getSessionManager();
-
-                if (manager != null && manager instanceof GCloudSessionManager)
-                {
-                    ((GCloudSessionManager)manager).renewSessionId(oldClusterId, oldNodeId, newClusterId, getNodeId(newClusterId, request));
-                }
-            }
-        }
-
-    }
 
     
     
@@ -300,12 +158,13 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
      * 
      * @param id
      */
-    protected void delete (String id)
+    protected boolean delete (String id)
     {
         if (_datastore == null)
             throw new IllegalStateException ("No DataStore");
         
         _datastore.delete(makeKey(id));
+        return true; //gcloud does not distinguish between first and subsequent removes
     }
     
     
@@ -319,5 +178,54 @@ public class GCloudSessionIdManager extends AbstractSessionIdManager
     protected Key makeKey (String id)
     {
         return _keyFactory.newKey(id);
+    }
+
+    /** 
+     * @see org.eclipse.jetty.server.SessionIdManager#isIdInUse(java.lang.String)
+     */
+    @Override
+    public boolean isIdInUse(String id)
+    {
+        if (id == null)
+            return false;
+        
+        
+        //ask the cluster - this should also tickle the idle expiration timer on the sessionid entry
+        //keeping it valid
+        try
+        {
+            return exists(id);
+        }
+        catch (Exception e)
+        {
+            LOG.warn("Problem checking inUse for id="+id, e);
+            return false;
+        }
+        
+    }
+
+    /** 
+     * @see org.eclipse.jetty.server.SessionIdManager#useId(org.eclipse.jetty.server.session.Session)
+     */
+    @Override
+    public void useId(Session session)
+    {
+        if (session == null)
+            return;
+
+        //insert into the store
+        insert (session.getId());
+    }
+
+    /** 
+     * @see org.eclipse.jetty.server.SessionIdManager#removeId(java.lang.String)
+     */
+    @Override
+    public boolean removeId(String id)
+    {
+       if (id == null)
+           return false;
+       
+       return delete(id);
     }
 }

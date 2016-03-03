@@ -60,8 +60,17 @@ public class WebInfConfiguration extends AbstractConfiguration
 
     protected Resource _preUnpackBaseResource;
     
+    public WebInfConfiguration()
+    {
+        super();
+    }
 
-
+    @Override
+    public boolean isEnabledByDefault()
+    {
+        return true;
+    }
+    
     @Override
     public void preConfigure(final WebAppContext context) throws Exception
     {
